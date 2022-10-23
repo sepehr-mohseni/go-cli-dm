@@ -17,6 +17,7 @@ type Download struct {
 func (dm Download) Do() error {
 	fmt.Println("Please wait while validating the URL...")
 
+	// head request
 	r, err := dm.GetNewRequest("HEAD")
 	if err != nil {
 		return err
@@ -35,10 +36,12 @@ func (dm Download) Do() error {
 	size, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
 	fmt.Printf("File size is %f MB\n\n", float64(size)/1000000.0)
 
+	// create chunks of file
 	var sections = make([][2]int, dm.TotalSections)
 	eachSize := size / dm.TotalSections
 	fmt.Printf("each chunk size is %v bytes\n", eachSize)
 
+	// [[0 10][10 20]....[99 end-1]] - total 100 byte file
 	for i := range sections {
 		if i == 0 {
 			sections[i][0] = 0
@@ -54,6 +57,7 @@ func (dm Download) Do() error {
 	}
 	log.Println(sections)
 
+	// download each chunk concurrently
 	var wg sync.WaitGroup
 	for i, s := range sections {
 		wg.Add(1)
