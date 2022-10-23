@@ -2,10 +2,8 @@ package manager
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 )
@@ -19,7 +17,7 @@ type Download struct {
 func (dm Download) Do() error {
 	fmt.Println("Please wait while validating the URL...")
 
-	r, err := dm.getNewRequest("HEAD")
+	r, err := dm.GetNewRequest("HEAD")
 	if err != nil {
 		return err
 	}
@@ -61,7 +59,7 @@ func (dm Download) Do() error {
 		wg.Add(1)
 		go func(i int, s [2]int) {
 			defer wg.Done()
-			err := dm.downloadChunk(i, s)
+			err := dm.DownloadChunk(i, s)
 			if err != nil {
 				panic(err)
 			}
@@ -69,85 +67,9 @@ func (dm Download) Do() error {
 	}
 
 	wg.Wait()
-	err = dm.mergeFiles()
+	err = dm.MergeFiles()
 	if err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func (dm Download) getNewRequest(method string) (*http.Request, error) {
-	r, err := http.NewRequest(
-		method,
-		dm.Url,
-		nil,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	r.Header.Set("User-Agent", "Sep DM V1")
-	return r, nil
-}
-
-func (dm Download) downloadChunk(idx int, sec [2]int) error {
-	r, err := dm.getNewRequest("GET")
-	if err != nil {
-		return err
-	}
-
-	r.Header.Set("Range", fmt.Sprintf("bytes=%v-%v", sec[0], sec[1]))
-	resp, err := http.DefaultClient.Do(r)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode > 299 {
-		return fmt.Errorf("error while processing %v", resp.StatusCode)
-	}
-
-	fmt.Printf("Downloaded %v bytes for Section %v\n", resp.ContentLength, idx)
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	err = os.WriteFile(fmt.Sprintf("section-%v.tmp", idx), b, os.ModePerm)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (dm Download) mergeFiles() error {
-	fileX, err := os.OpenFile(dm.TargetPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer fileX.Close()
-
-	for i := 0; i < dm.TotalSections; i++ {
-		fileTmp := fmt.Sprintf("section-%v.tmp", i)
-		b, err := os.ReadFile(fileTmp)
-
-		if err != nil {
-			return err
-		}
-
-		bw, err := fileX.Write(b)
-		if err != nil {
-			return err
-		}
-		err = os.Remove(fileTmp)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Merged %v bytes from Section %v\n", bw, i)
 	}
 
 	return nil
